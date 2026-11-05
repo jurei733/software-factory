@@ -12,6 +12,13 @@ import factory
 ROOT = Path(__file__).resolve().parent
 MANIFEST = ".factory/integration.json"
 CUSTOM = {".factory/config.json", ".factory/PROJECT_RULES.md"}
+MANAGED = {
+    ".factory/factory.py", ".factory/repository_factory.py", ".factory/isolated_runner.py",
+    ".factory/prepare_task.py", ".factory/needs-configuration.py",
+    ".factory/scripts/install_scanner.py", ".factory/scripts/security_gate.py",
+    ".factory/config/security/tools.json", ".factory/config/trivy.yaml",
+    ".github/workflows/factory-quality.yml", ".github/workflows/factory-task.yml", "INTEGRATION.md",
+}
 
 
 def digest(path):
@@ -21,9 +28,7 @@ def digest(path):
 def managed(name):
     factory.require(factory.relative_path(name) and not {".git", ".."}.intersection(Path(name).parts),
                     "Unsafe managed integration path")
-    return (name.startswith(".factory/") and name not in CUSTOM and
-            not name.startswith(".factory/tasks/") and name != MANIFEST) or name in (
-                ".github/workflows/factory-quality.yml", ".github/workflows/factory-task.yml", "INTEGRATION.md")
+    return name in MANAGED
 
 
 def regular(root, name, *, missing=False):

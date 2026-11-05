@@ -64,6 +64,15 @@ class IntegrationUpdateTests(unittest.TestCase):
         profile = repository_factory.draft_profile(self.repo, "example-owner/consumer")
         self.assertEqual(profile["ci"]["install"][0]["argv"], ["corepack", "yarn", "install", "--frozen-lockfile"])
 
+    def test_ownership_manifest_cannot_claim_arbitrary_consumer_files(self):
+        private = self.repo / ".factory/private-local.json"; private.write_text("synthetic user state")
+        manifest = updates.read_manifest(self.repo)
+        manifest["files"][".factory/private-local.json"] = updates.digest(private)
+        (self.repo / updates.MANIFEST).write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(factory.FactoryError, "ownership"):
+            updates.upgrade(self.repo, self.root / "unowned", apply=True)
+        self.assertEqual(private.read_text(), "synthetic user state")
+
 
 if __name__ == "__main__":
     unittest.main()

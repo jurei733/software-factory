@@ -83,6 +83,14 @@ optional/experimental until independently verified on an entitled colleague's ac
 General Codex/Claude work packets do not start providers. The three-ticket controller is
 a synthetic pilot; it is not a general unattended repository agent.
 
+The main controller, Docker isolation and integration matrix run on Ubuntu 24.04. The
+real Codex permission contract runs on standard macOS 15 with locked Codex 0.166.0-alpha.6;
+no login/model call is needed. Ubuntu GitHub runners currently reject this CLI's bubblewrap
+loopback setup, so they are not a qualified native-agent environment. On other Linux hosts,
+run `FACTORY_CODEX_TESTS=1 python3 -m unittest discover -s tests -p test_codex_boundaries.py -v`
+before using the optional pilot. A failed contract blocks native-agent use; do not disable
+network isolation, change kernel protections or fall back to unrestricted execution.
+
 ## Private runtime backup
 
 Stop owned Tares services and finish/publish active tasks first. Do not copy live database
