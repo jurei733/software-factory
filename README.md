@@ -58,6 +58,13 @@ Docker aus: kein Netzwerk, keine Host-Zugangsdaten, nicht-root, schreibgeschütz
 mit ausdrücklich erlaubten Ticketpfaden, Ressourcen- und Versuchsbudgets. Es gibt keinen
 Fallback zur Ausführung auf dem Host. Werkzeugimages benötigen einen unveränderlichen Digest.
 
+Die lokale Abnahme verlangt einen sauberen Checkout mit den **rohen Commit-Bytes und
+Dateimodi**. Smudge-/LFS-/EOL-transformierte Arbeitskopien werden ausdrücklich abgewiesen.
+Globale Git-Konfiguration, globale Ignore-Regeln, Hooks, Filter und Templates werden nicht
+geerbt; benötigte Ignore-Regeln gehören in das Projekt. Exportattribute verändern die
+Prüfquelle nicht. Binäre Änderungen, neue/gelöschte Dateien und interne Links werden anhand
+des vollständigen Dateibaums geprüft; Änderungen außerhalb der Aufgabe bleiben gesperrt.
+
 Die exportierte GitHub-CI verwendet frische Standard-Runner mit Lesezugriff. Projektcode und
 Security-Analyse laufen in getrennten Jobs; Installationsfehler verhindern Tests/Build/Pakete.
 HIGH/CRITICAL-Abhängigkeiten und Secret-Funde sperren das Gate. Vorgeschlagene Befehle müssen
@@ -77,9 +84,15 @@ und Anmeldung des jeweiligen Kollegen. Ohne diese Berechtigung bleibt sie ausges
 
 Factory-CI, Agentenpilot, Projekt-CI und Aufgabenübergabe funktionieren ohne fest eingetragenen
 GitHub-Besitzer oder Repository-Namen. Build-Pakete werden nur vom konfigurierten Defaultbranch
-als unveröffentlichte Release-Entwürfe gespeichert. Produktionsdeployments und Auto-Merge sind
-nicht eingerichtet. Signaturprüfung, Branchschutz und Betriebsfreigaben werden separat aktiviert;
-ein zweiter Code Owner ist optional.
+als unveröffentlichte Release-Entwürfe gespeichert. Die Factory besitzt einen signierten
+Releasepfad mit gebundenen Sicherheitsbelegen/SBOM, verifizierter Paketinstallation und
+manuell ausgelöster Veröffentlichung. Branchregeln müssen im jeweiligen Repository aktiviert
+sein; ein zweiter Code Owner ist optional. Andere Anwendungen werden nicht automatisch deployt.
+
+Versionierte Integrationen lassen sich mit `factory.py upgrade --repo ... --out ...`
+zunächst als Vorschau aktualisieren. `--apply` prüft Konflikte, erhält eigene Profile/Aufgaben
+und legt externe Sicherungen an. [Betrieb, Releases und Wiederherstellung](docs/OPERATIONS.md),
+[Änderungen](CHANGELOG.md), [Beiträge](CONTRIBUTING.md), [MIT-Lizenz](LICENSE).
 
 ```sh
 python3 -m unittest discover -s tests -v

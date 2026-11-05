@@ -1,0 +1,8 @@
+{
+  "name": "factory-sandbox-contract",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@openai/codex": "0.166.0-alpha.6"
+  }
+}

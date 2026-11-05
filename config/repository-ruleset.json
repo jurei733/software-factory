@@ -35,6 +35,10 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
+            "context": "Factory readiness gate",
+            "integration_id": 15368
+          },
+          {
             "context": "Factory verification",
             "integration_id": 15368
           },

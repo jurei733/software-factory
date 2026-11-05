@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch as mock_patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -110,6 +111,62 @@ class IsolationTests(unittest.TestCase):
             factory.run_checks(self.repo, self.config, self.task, self.base / "session/report.json",
                                self.image, patch)
         self.assertEqual((self.repo / "ignored.txt").read_text(), "synthetic ignored credential")
+
+    def test_generic_snapshot_ignores_export_attributes_and_rejects_raw_or_index_changes(self):
+        (self.repo / ".gitattributes").write_text("blocked.txt export-ignore\nsrc/allowed.txt export-subst\n")
+        (self.repo / "src/allowed.txt").write_text("$Format:%H$\n")
+        subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=Fixture", "-c",
+                        "user.email=fixture@example.invalid", "commit", "-qm", "Attributes"], check=True)
+        target = self.base / "snapshot"; target.mkdir()
+        isolated_runner.snapshot(self.repo, target)
+        self.assertEqual((target / "blocked.txt").read_text(), "original\n")
+        self.assertEqual((target / "src/allowed.txt").read_text(), "$Format:%H$\n")
+        (self.repo / "blocked.txt").write_text("modified\n")
+        for staged in (False, True):
+            if staged:
+                subprocess.run(["git", "-C", str(self.repo), "add", "blocked.txt"], check=True)
+            output = self.base / ("dirty-" + str(staged)); output.mkdir()
+            with self.assertRaisesRegex(ValueError, "raw committed|clean committed"):
+                isolated_runner.snapshot(self.repo, output)
+
+    def test_public_patch_preparation_cannot_execute_hooks_filters_fsmonitor_or_templates(self):
+        marker = self.base / "host-marker"
+        script = "#!/bin/sh\nprintf unsafe > " + str(marker) + "\ncat\n"
+        hooks = self.repo / ".githooks"; hooks.mkdir()
+        for name in ("pre-commit", "post-checkout", "reference-transaction"):
+            (hooks / name).write_text(script); (hooks / name).chmod(0o755)
+        (self.repo / ".gitattributes").write_text("*.txt filter=hostile\n")
+        subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=Fixture", "-c",
+                        "user.email=fixture@example.invalid", "commit", "-qm", "Hostile inputs"], check=True)
+        # Local filters must not run even while establishing worktree cleanliness.
+        subprocess.run(["git", "-C", str(self.repo), "config", "filter.hostile.clean", str(hooks / "pre-commit")], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "config", "core.fsmonitor", str(hooks / "pre-commit")], check=True)
+        config = self.base / "global.gitconfig"
+        config.write_text("[core]\n hooksPath = .githooks\n[filter \"hostile\"]\n clean = .githooks/pre-commit\n")
+        templates = self.base / "templates/hooks"; templates.mkdir(parents=True)
+        (templates / "pre-commit").write_text(script); (templates / "pre-commit").chmod(0o755)
+        submitted = self.base / "scope.patch"
+        submitted.write_text("diff --git a/blocked.txt b/blocked.txt\n--- a/blocked.txt\n+++ b/blocked.txt\n@@ -1 +1 @@\n-original\n+changed\n")
+        report = self.base / "session/report.json"
+        with mock_patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(config), "GIT_TEMPLATE_DIR": str(templates.parent)}):
+            with self.assertRaisesRegex(ValueError, "outside allowed_paths"):
+                factory.run_checks(self.repo, self.config, self.task, report, self.image, submitted)
+        self.assertFalse(marker.exists(), "Project code executed on the host")
+        self.assertFalse(report.exists())
+        self.assertFalse((report.parent / ".ISOLATION-001.attempts.json").exists())
+
+    @unittest.skipUnless(os.environ.get("FACTORY_DOCKER_TESTS") == "1", "Required in the isolation CI job")
+    def test_public_container_sees_complete_untransformed_committed_source(self):
+        (self.repo / ".gitattributes").write_text("blocked.txt export-ignore\nsrc/allowed.txt export-subst\n")
+        (self.repo / "src/allowed.txt").write_text("$Format:%H$\n")
+        subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
+        subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=Fixture", "-c",
+                        "user.email=fixture@example.invalid", "commit", "-qm", "Attributes"], check=True)
+        self.config["steps"][0]["argv"] = ["/bin/sh", "-c", "test -f blocked.txt && grep -Fq '$Format:%H$' src/allowed.txt"]
+        code, report = self.run_report()
+        self.assertEqual(code, 0, report)
 
     def test_root_symlink_and_source_backed_scratch_mounts_are_rejected(self):
         for value in (".", ".git", "../outside", "src,readonly=false"):
