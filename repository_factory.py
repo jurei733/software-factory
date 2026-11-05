@@ -106,7 +106,8 @@ def draft_profile(repo, repository, stack="auto"):
                  if category in available]
         lock = {"npm": "package-lock.json", "pnpm": "pnpm-lock.yaml", "yarn": "yarn.lock"}[manager]
         if (root / lock).is_file():
-            install_argv = ["npm", "ci", "--no-fund"] if manager == "npm" else command + (["install", "--frozen-lockfile"] if manager == "pnpm" else ["install", "--immutable"])
+            classic_yarn = manager == "yarn" and declared.split("@")[1].split(".")[0] == "1"
+            install_argv = ["npm", "ci", "--no-fund"] if manager == "npm" else command + (["install", "--frozen-lockfile"] if manager == "pnpm" or classic_yarn else ["install", "--immutable"])
             install = [{"id": "dependencies", "argv": install_argv,
                         "cwd": ".", "timeout_seconds": 600}]
         else:
@@ -183,6 +184,8 @@ def export_repository(config, output):
         text = text.replace("__ACTION_" + name + "__", pin["uses"] + " # " + pin["version"])
     (workflows / "factory-task.yml").write_text(text)
     (output / "INTEGRATION.md").write_text((ROOT / "templates/REPOSITORY_INTEGRATION.md").read_text())
+    from integration_updates import record
+    record(output)
 
 
 def onboard_repository(repo, repository, output, *, stack="auto"):

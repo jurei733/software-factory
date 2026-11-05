@@ -58,7 +58,7 @@ jobs:
           name: factory-checks-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/factory-results/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 14
 
   security:
     name: Repository security
@@ -101,7 +101,7 @@ jobs:
           name: factory-security-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/factory-security/
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
   gate:
     name: Repository factory gate

@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import delivery_metrics
 import publish_delivery
 import verify_promotion
+import release_evidence
 
 
 class PromotionAndMetricsTests(unittest.TestCase):
@@ -32,7 +33,7 @@ class PromotionAndMetricsTests(unittest.TestCase):
             env = {"GITHUB_REPOSITORY": "example-owner/project", "GITHUB_REF": "refs/heads/main",
                    "GITHUB_SHA": "a" * 40, "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1"}
             metadata = dict(publish_delivery.context(env), component="sample-web-frontend",
-                            source_repository="example-owner/project", source_commit="b" * 40)
+                            source_repository="example-owner/project", source_commit="a" * 40)
             unsigned = root / "unsigned.zip";publish_delivery.bundle(source, unsigned, metadata)
             verifier = Mock()
             with self.assertRaisesRegex(ValueError, "security evidence"):
@@ -40,21 +41,34 @@ class PromotionAndMetricsTests(unittest.TestCase):
             verifier.assert_not_called()
             self.assertEqual(verify_promotion.verify(unsigned, "isolated-staging", repository="example-owner/project")["status"], "verified")
             evidence = root / "evidence";evidence.mkdir()
-            (evidence / "security-summary.json").write_text(json.dumps(
-                {"schema_version": 1, "status": "passed", "production_eligible": True}))
             (evidence / "sbom.cdx.json").write_text('{"bomFormat":"CycloneDX"}')
+            summary = {"schema_version": 1, "status": "passed", "production_eligible": True,
+                       "introduced_high_or_critical": [], "existing_high_or_critical": [], "secrets": []}
+            bound = release_evidence.bind(summary, evidence / "sbom.cdx.json", source, env)
+            (evidence / "security-summary.json").write_text(json.dumps(bound))
             clean = root / "clean.zip";publish_delivery.bundle(source, clean, metadata, evidence)
-            result = verify_promotion.verify(clean, "production", repository="example-owner/project", verifier=verifier)
+            result = verify_promotion.verify(clean, "production", repository="example-owner/project", expected_source_sha="a"*40, verifier=verifier)
             self.assertFalse(result["deployment_performed"])
             args = verifier.call_args.args[0]
             self.assertIn("--source-ref", args)
             self.assertIn("refs/heads/main", args)
             self.assertIn("--deny-self-hosted-runners", args)
-            self.assertIn("--no-public-good", args)
+            self.assertNotIn("--no-public-good", args)
             self.assertIn("example-owner/project" + "/.github/workflows/factory.yml", args)
             verifier.side_effect = RuntimeError("Invalid attestation")
             with self.assertRaisesRegex(RuntimeError, "Invalid attestation"):
-                verify_promotion.verify(clean, "production", repository="example-owner/project", verifier=verifier)
+                verify_promotion.verify(clean, "production", repository="example-owner/project", expected_source_sha="a"*40, verifier=verifier)
+            verifier.side_effect = None
+            verify_promotion.verify(clean, "production", repository="example-owner/project", expected_source_sha="a"*40,
+                                    trust_domain="github-private", verifier=verifier)
+            self.assertIn("--no-public-good", verifier.call_args.args[0])
+            with self.assertRaisesRegex(ValueError, "pinned source"):
+                verify_promotion.verify(clean, "production", repository="example-owner/project", expected_source_sha="b"*40, verifier=verifier)
+            for mutation in ({"binding": dict(bound["binding"], run_attempt=2)},
+                             {"payload": []}, {"existing_high_or_critical": [{"id": "synthetic"}]}):
+                (evidence / "security-summary.json").write_text(json.dumps(dict(bound, **mutation)))
+                with self.assertRaisesRegex(ValueError, "bound"):
+                    publish_delivery.bundle(source, root / (str(len(mutation))+"-"+next(iter(mutation))+".zip"), metadata, evidence)
 
     def test_metrics_exclude_staging_other_apps_and_old_events_and_preserve_unknowns(self):
         now = datetime(2026, 11, 4, tzinfo=timezone.utc)

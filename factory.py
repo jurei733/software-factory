@@ -349,6 +349,10 @@ def main():
         onboard.add_argument("--repository", required=True, help="GitHub owner/repository")
         onboard.add_argument("--stack", choices=("auto", "node", "python", "custom"), default="auto")
         onboard.add_argument("--out", required=True, help="Neuer Overlay-Ordner außerhalb des Checkouts")
+        upgrade = commands.add_parser("upgrade", help="Integration mit Driftprüfung aktualisieren; standardmäßig nur Vorschau")
+        upgrade.add_argument("--repo", required=True)
+        upgrade.add_argument("--out", required=True, help="Neuer externer Plan-/Backupordner")
+        upgrade.add_argument("--apply", action="store_true", help="Geprüfte Änderungen mit Backup anwenden")
     doctor = commands.add_parser("doctor", help="Repository-Profil und lokale Voraussetzungen ohne Codeausführung prüfen")
     doctor.add_argument("--repo", required=True)
     doctor.add_argument("--config", required=True)
@@ -369,6 +373,9 @@ def main():
     elif args.command == "doctor":
         from repository_factory import doctor_repository
         print(json.dumps(doctor_repository(args.repo, read_json(args.config)), ensure_ascii=False, indent=2))
+    elif args.command == "upgrade":
+        from integration_updates import upgrade
+        print(json.dumps(upgrade(args.repo, args.out, apply=args.apply), indent=2))
     else:
         config = read_json(args.config)
         if args.command == "validate":

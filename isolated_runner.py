@@ -13,8 +13,25 @@ import time
 import uuid
 
 
+def git_command(root, *args):
+    """Local object operations never inherit executable Git configuration or helpers."""
+    return ["git", "-C", str(root), "-c", "core.hooksPath=/dev/null", "-c",
+            "core.fsmonitor=false", "-c", "core.attributesFile=/dev/null", *args]
+
+
+def git_environment():
+    return {**{key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TMPDIR") if key in os.environ},
+            "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_ATTR_NOSYSTEM": "1", "GIT_NO_REPLACE_OBJECTS": "1", "GIT_NO_LAZY_FETCH": "1",
+            "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+
+
+def git_bytes(root, *args):
+    return subprocess.check_output(git_command(root, *args), env=git_environment())
+
+
 def git(root, *args):
-    return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+    return git_bytes(root, *args).decode().strip()
 
 
 def mount_paths(root, paths, *, scratch=False):
@@ -46,12 +63,36 @@ def mount_paths(root, paths, *, scratch=False):
 
 
 def snapshot(repo, target):
-    """Copy tracked public/synthetic inputs only; never copy .git, ignored files or host links."""
-    if git(repo, "status", "--porcelain", "--untracked-files=all"):
-        raise ValueError("Sandbox requires a clean committed checkout; submit a scoped patch separately")
+    """Copy exact committed blobs without filters, export attributes or host hook execution."""
+    repo, target = Path(repo).resolve(), Path(target).resolve()
     commit = git(repo, "rev-parse", "HEAD")
-    data = subprocess.check_output(["git", "-C", str(repo), "archive", commit])
-    extract_archive(data, target)
+    copy_git_tree(repo, commit, target)
+    # `git status` may itself execute a repository's clean filter. Compare objects and
+    # raw tracked bytes instead. Smudged/EOL-transformed checkouts fail closed explicitly.
+    expected = {}
+    for item in git_bytes(repo, "ls-tree", "-rz", "--full-tree", commit).split(b"\0"):
+        if item:
+            info, name = item.split(b"\t", 1)
+            mode, kind, sha = info.split()
+            expected[name] = (mode, sha, b"0")
+    indexed = {}
+    for item in git_bytes(repo, "ls-files", "--stage", "-z").split(b"\0"):
+        if item:
+            info, name = item.split(b"\t", 1)
+            mode, sha, stage = info.split()
+            if name in indexed:
+                raise ValueError("Sandbox requires an unmerged-free committed index")
+            indexed[name] = (mode, sha, stage)
+    if indexed != expected or git_bytes(repo, "ls-files", "--others", "--exclude-standard", "-z"):
+        raise ValueError("Sandbox requires a clean committed checkout; submit a scoped patch separately")
+    for name, identity in file_manifest(target).items():
+        path = Path(repo) / name
+        if any(parent.is_symlink() for parent in path.parents if parent != Path(repo) and Path(repo) in parent.parents):
+            raise ValueError("Tracked checkout path traverses a symlink")
+        actual = (("symlink", os.readlink(path)) if path.is_symlink() else
+                  (hashlib.sha256(path.read_bytes()).hexdigest(), bool(path.stat().st_mode & 0o111)) if path.is_file() else None)
+        if actual != identity:
+            raise ValueError("Checkout differs from raw committed bytes/modes (modified, smudged or EOL-transformed); use a raw clean checkout")
     return commit
 
 
@@ -98,10 +139,10 @@ def copy_git_tree(repo, revision, target, prefix=None):
     target = Path(target).resolve()
     if any(path.name != ".git" for path in target.iterdir()):
         raise ValueError("Raw snapshot destination must contain only optional worktree metadata")
-    argv = ["git", "-C", str(repo), "ls-tree", "-rz", "--full-tree", revision]
+    argv = ["ls-tree", "-rz", "--full-tree", revision]
     if prefix:
         argv += ["--", prefix]
-    entries = subprocess.check_output(argv).split(b"\0")
+    entries = git_bytes(repo, *argv).split(b"\0")
     links = []
     for entry in entries:
         if not entry:
@@ -113,7 +154,7 @@ def copy_git_tree(repo, revision, target, prefix=None):
             raise ValueError("Unsafe raw Git snapshot entry")
         destination = target/path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        data = subprocess.check_output(["git", "-C", str(repo), "cat-file", "blob", sha])
+        data = git_bytes(repo, "cat-file", "blob", sha)
         if mode == "120000":
             links.append((destination, os.fsdecode(data)))
         else:
@@ -245,14 +286,15 @@ def run_checks(repo, config, task, report, image, *, patch=None):
             patch_digest = hashlib.sha256(patch_bytes).hexdigest()
             applied_patch = Path(directory) / "submitted.patch"
             applied_patch.write_bytes(patch_bytes)
-            # The original checkout stays untouched. Reject binary patches and all paths outside the task.
-            subprocess.run(["git", "init", "-q", str(root)], check=True)
-            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
-            subprocess.run(["git", "-C", str(root), "-c", "user.name=Factory sandbox", "-c",
-                            "user.email=factory@example.invalid", "commit", "-qm", "Snapshot"], check=True)
+            # Own empty Git metadata prevents discovery of an enclosing checkout.
+            # No add/commit: neither filters, signing programs nor project hooks run.
+            templates = Path(directory) / "empty-templates"
+            templates.mkdir()
+            subprocess.run(git_command(root, "init", "-q", "--template=" + str(templates)),
+                           env=git_environment(), check=True)
             before = file_manifest(root)
-            subprocess.run(["git", "-C", str(root), "apply", "--check", str(applied_patch)], check=True)
-            subprocess.run(["git", "-C", str(root), "apply", str(applied_patch)], check=True)
+            subprocess.run(git_command(root, "apply", "--check", str(applied_patch)), env=git_environment(), check=True)
+            subprocess.run(git_command(root, "apply", str(applied_patch)), env=git_environment(), check=True)
             after = file_manifest(root)
             changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
             if any(not any(name == allowed or name.startswith(allowed.rstrip("/") + "/")
