@@ -85,7 +85,8 @@ a synthetic pilot; it is not a general unattended repository agent.
 
 The main controller, Docker isolation and integration matrix run on Ubuntu 24.04. The
 real Codex permission contract runs on standard macOS 15 with locked Codex 0.166.0-alpha.6;
-no login/model call is needed. Ubuntu GitHub runners currently reject this CLI's bubblewrap
+the locked package's native executable is selected directly, without an npm launcher
+inside the restricted shell. No login/model call is needed. Ubuntu GitHub runners reject this CLI's bubblewrap
 loopback setup, so they are not a qualified native-agent environment. On other Linux hosts,
 run `FACTORY_CODEX_TESTS=1 python3 -m unittest discover -s tests -p test_codex_boundaries.py -v`
 before using the optional pilot. A failed contract blocks native-agent use; do not disable

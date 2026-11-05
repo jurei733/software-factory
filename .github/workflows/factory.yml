@@ -262,7 +262,9 @@ jobs:
       - name: Install integrity-locked CLI without model calls or login
         run: |
           npm ci --prefix config/ci-agent --ignore-scripts --no-audit --no-fund
-          echo "$GITHUB_WORKSPACE/config/ci-agent/node_modules/.bin" >> "$GITHUB_PATH"
+          native="$GITHUB_WORKSPACE/config/ci-agent/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin"
+          test -x "$native/codex"
+          echo "$native" >> "$GITHUB_PATH"
       - name: Prove actual worker/reviewer filesystem and network denial
         env:
           FACTORY_CODEX_TESTS: '1'
