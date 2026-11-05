@@ -1,0 +1,12 @@
+{
+  "name": "factory-agent-pilot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "node --check src/summary.js && node --check src/cli.js",
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build.js"
+  },
+  "dependencies": {"picocolors": "1.1.1"}
+}

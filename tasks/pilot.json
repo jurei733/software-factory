@@ -1,0 +1,19 @@
+{
+  "id": "REPOSITORY-BASELINE-001",
+  "title": "Repository baseline review",
+  "goal": "Inspect project rules and verify configured checks",
+  "acceptance": [
+    "Alle Python-Quelldateien lassen sich kompilieren.",
+    "Fehlerhafte und abgebrochene Checks erzeugen einen fehlgeschlagenen Pr\u00fcfbericht.",
+    "Ein ZIP mit Quellcode, Profilen, Vorlagen und Dokumentation wird gebaut."
+  ],
+  "out_of_scope": [
+    "Anwendungscode am Factory ver\u00e4ndern",
+    "Externe KI-APIs, Merge und Deployment"
+  ],
+  "allowed_paths": [],
+  "risk": "low",
+  "data_class": "synthetic",
+  "max_attempts": 2,
+  "max_minutes": 30
+}

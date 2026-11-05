@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+dist/
+work/
+work-packet/
+demo-paket/
+*-pruefbericht.json

@@ -1,0 +1,7 @@
+# This trusted config is passed explicitly; upstream ignore/config files cannot weaken the policy.
+timeout: 10m
+quiet: true
+skip-dirs:
+  - node_modules
+  - .git
+  - .cache

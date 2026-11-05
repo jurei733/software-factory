@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "project": "$GITHUB_REPOSITORY",
+  "reviewed": true,
+  "rules_files": [
+    "README.md",
+    "SECURITY.md"
+  ],
+  "prerequisites": [
+    "GitHub-hosted Linux runner; Python standard library; no AI provider token"
+  ],
+  "steps": [
+    {
+      "id": "syntax",
+      "category": "lint",
+      "argv": [
+        "python3",
+        "scripts/check_syntax.py"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 60
+    },
+    {
+      "id": "regression",
+      "category": "test",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-v"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 300
+    },
+    {
+      "id": "package",
+      "category": "build",
+      "argv": [
+        "python3",
+        "scripts/package.py"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 60
+    }
+  ],
+  "ci": {
+    "stack": "python",
+    "runtime": "3.13",
+    "install": [],
+    "artifact_paths": [
+      "dist/software-factory.zip"
+    ],
+    "timeout_minutes": 30
+  }
+}

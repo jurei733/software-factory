@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "project": "software-factory-local-demo",
+  "reviewed": true,
+  "rules_files": ["README.md"],
+  "prerequisites": ["Docker; Werkzeugimage aus Dockerfile.factory-checks mit unveränderlichem Image-Digest"],
+  "execution": {"scratch_paths": ["dist", "coverage", ".nx", "test-results", "work"]},
+  "steps": [
+    {"id": "syntax", "category": "lint", "argv": ["python3", "scripts/check_syntax.py"], "cwd": ".", "timeout_seconds": 30},
+    {"id": "regression", "category": "test", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"], "cwd": ".", "timeout_seconds": 60},
+    {"id": "package", "category": "build", "argv": ["python3", "scripts/package.py"], "cwd": ".", "timeout_seconds": 30}
+  ]
+}

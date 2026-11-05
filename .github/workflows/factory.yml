@@ -1,0 +1,99 @@
+name: Factory CI
+
+on:
+  pull_request:
+  push:
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Factory verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Check Python syntax
+        run: python3 scripts/check_syntax.py
+      - name: Run factory regression tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Verify repository-independent configuration
+        run: python3 scripts/check_portability.py
+      - name: Install pinned workflow validator
+        run: bash scripts/install_actionlint.sh
+      - name: Validate central and exported workflows
+        run: python3 scripts/check_workflows.py
+      - name: Build portable factory package
+        run: python3 scripts/package.py
+
+  deliver:
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: [verify, security, isolation]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build checked factory distribution
+        run: python3 scripts/package.py
+      - name: Store factory package as a private release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FACTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: >-
+          python3 scripts/publish_delivery.py --source dist --component factory
+          --source-repository "${{ github.repository }}" --source-sha "${{ github.sha }}"
+
+  security:
+    name: Factory security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Install checksum-locked static-analysis dependencies
+        run: >-
+          python3 -m pip install --require-hashes --only-binary=:all: -r config/security/requirements.txt
+      - name: Analyze executable factory code
+        run: bandit -r factory.py repository_factory.py tares_adapter.py connector_publisher.py pilot_checks.py runtime_safety.py isolated_runner.py scripts --severity-level medium --confidence-level medium
+      - name: Install checksum-locked security scanner
+        run: python3 scripts/install_scanner.py --directory "$RUNNER_TEMP/factory-scanner"
+      - name: Scan factory dependencies and secrets
+        run: trivy fs --config config/trivy.yaml --ignorefile /dev/null --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 .
+
+  isolation:
+    name: Isolated execution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Pull the immutable sandbox test image
+        run: |
+          image=$(python3 -c 'import json; print(json.load(open("config/sandbox.json"))["test_image"])')
+          docker pull "$image"
+      - name: Prove enforced paths, credential isolation, budgets and cleanup in real containers
+        env:
+          FACTORY_DOCKER_TESTS: '1'
+        run: |
+          python3 -m unittest discover -s tests -p test_isolation.py -v
+          python3 -m unittest discover -s tests -p test_pilot_isolation.py -v

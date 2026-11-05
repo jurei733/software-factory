@@ -1,0 +1,16 @@
+{
+  "id": "FACTORY-001",
+  "title": "Lokalen Fabrikprototyp prüfen und paketieren",
+  "goal": "Das Fabrikwerkzeug lokal auf Syntax, Verhaltensfehler und Paketierbarkeit prüfen.",
+  "acceptance": [
+    "Alle Python-Quelldateien lassen sich kompilieren.",
+    "Fehlerhafte und abgebrochene Checks erzeugen einen fehlgeschlagenen Prüfbericht.",
+    "Ein ZIP mit Quellcode, Profilen, Vorlagen und Dokumentation wird gebaut."
+  ],
+  "out_of_scope": ["Produktivcode ohne expliziten Auftrag verändern", "Externe KI-APIs, Merge und Deployment"],
+  "allowed_paths": ["factory.py", "tests", "scripts", "profiles", "templates", "examples"],
+  "risk": "low",
+  "data_class": "synthetic",
+  "max_attempts": 2,
+  "max_minutes": 30
+}

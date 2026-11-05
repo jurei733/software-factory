@@ -1,0 +1,44 @@
+name: Factory task handoff
+
+on:
+  workflow_dispatch:
+    inputs:
+      assistant:
+        description: Assistant used for the downloaded work packet
+        type: choice
+        options: [codex, claude]
+        default: codex
+        required: true
+      task_file:
+        description: Committed JSON task under .factory/tasks/
+        type: string
+        default: tasks/pilot.json
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Prepare work packet
+        env:
+          ASSISTANT: ${{ inputs.assistant }}
+          TASK_FILE: ${{ inputs.task_file }}
+        run: python3 scripts/prepare_task.py
+      - name: Upload work packet
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: factory-task-${{ inputs.assistant }}-${{ github.run_id }}
+          path: work-packet/
+          if-no-files-found: error
+          compression-level: 9
+          retention-days: 3

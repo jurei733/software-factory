@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "repository": "example-owner/example-repository",
+  "project": "factory-agent-pilot-v1",
+  "working_directory": "examples/tares-baseline/v1",
+  "tasks": [
+    {
+      "id": "PILOT-BUG-001",
+      "title": "Preserve a completed count of zero",
+      "goal": "summary(0) must return completed: 0, while positive counts and invalid-input behavior stay correct. Add a regression test.",
+      "allowed_paths": [
+        "examples/tares-baseline/v1/src/summary.js",
+        "examples/tares-baseline/v1/test"
+      ],
+      "acceptance": "zero",
+      "max_minutes": 10,
+      "max_attempts": 2
+    },
+    {
+      "id": "PILOT-FEATURE-002",
+      "title": "Add machine-readable CLI output",
+      "goal": "Add --json to src/cli.js. It must print exactly one JSON object {completed:3,status:'ready'} and preserve the existing readable default output. Add a CLI regression test.",
+      "allowed_paths": [
+        "examples/tares-baseline/v1/src/cli.js",
+        "examples/tares-baseline/v1/test"
+      ],
+      "acceptance": "json",
+      "max_minutes": 10,
+      "max_attempts": 2
+    },
+    {
+      "id": "PILOT-DEPS-003",
+      "title": "Update the pinned color dependency",
+      "goal": "Update picocolors from exactly 1.1.0 to exactly 1.1.1 in package.json and the npm lockfile. Preserve all behavior. The registry SHA-512 integrity for 1.1.1 is sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==. The controller will perform a clean install after your edit.",
+      "allowed_paths": [
+        "examples/tares-baseline/v1/package.json",
+        "examples/tares-baseline/v1/package-lock.json"
+      ],
+      "acceptance": "dependency",
+      "max_minutes": 10,
+      "max_attempts": 2
+    }
+  ],
+  "baseline_version": 1,
+  "baseline_sha256": "5b53695362f647d66f5479172feea12efaaa403a8b5542b04e7f9d3d3697176c"
+}
